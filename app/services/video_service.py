@@ -19,32 +19,49 @@ class VideoService:
         skip: int = 0,
         limit: int = 100,
         channel_id: Optional[int] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        category: Optional[str] = None,
+        search: Optional[str] = None
     ) -> List[Video]:
         """
         Get all videos with optional filtering.
-        
+
         Args:
             db: Database session
             skip: Number of records to skip
             limit: Maximum number of records to return
             channel_id: Filter by channel ID
             is_active: Filter by active status
-            
+            category: Filter by channel category
+            search: Search by title or description
+
         Returns:
             List of videos
         """
-        query = select(Video)
-        
+        from app.models.channel import Channel
+        from sqlalchemy.orm import selectinload
+
+        # Start query with channel relationship
+        query = select(Video).options(selectinload(Video.channel))
+
         # Apply filters
         if channel_id is not None:
             query = query.where(Video.channel_id == channel_id)
         if is_active is not None:
             query = query.where(Video.is_active == is_active)
-        
+        if category is not None:
+            # Join with Channel to filter by category
+            query = query.join(Channel).where(Channel.category == category)
+        if search is not None:
+            # Search in title or description
+            search_term = f"%{search}%"
+            query = query.where(
+                (Video.title.ilike(search_term)) | (Video.description.ilike(search_term))
+            )
+
         # Apply pagination and ordering
         query = query.offset(skip).limit(limit).order_by(Video.created_at.desc())
-        
+
         result = await db.execute(query)
         return list(result.scalars().all())
     
@@ -102,10 +119,11 @@ class VideoService:
         Raises:
             ConflictException: If video already exists
         """
-        # Check if YouTube ID already exists
-        existing = await self.get_by_youtube_id(db, video_data.youtube_id)
-        if existing:
-            raise ConflictException(f"Video with YouTube ID '{video_data.youtube_id}' already exists")
+        # Check if YouTube ID already exists (only for non-NULL youtube_id)
+        if video_data.youtube_id is not None:
+            existing = await self.get_by_youtube_id(db, video_data.youtube_id)
+            if existing:
+                raise ConflictException(f"Video with YouTube ID '{video_data.youtube_id}' already exists")
         
         # Create new video
         video = Video(**video_data.model_dump())

@@ -1,26 +1,29 @@
 """
-Channel model - database schema.
+Channel database model.
 """
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import String, DateTime, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy.orm import declarative_base, relationship
 
 from app.db.base import Base
 
 
 class Channel(Base):
-    """Channel model."""
+    """Channel model for streaming channels."""
     
     __tablename__ = "channels"
     
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
-    category: Mapped[str] = mapped_column(String(50), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    logo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, index=True, nullable=False)
+    category = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    logo_url = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
-    def __repr__(self) -> str:
-        return f"<Channel(id={self.id}, name='{self.name}', category='{self.category}')>"
+    # Relationships
+    videos = relationship("Video", back_populates="channel")
+    playlists = relationship("Playlist", back_populates="channel", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Channel(id={self.id}, name='{self.name}', category={self.category})>"

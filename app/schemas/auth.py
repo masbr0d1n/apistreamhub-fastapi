@@ -2,6 +2,15 @@
 Authentication schemas - request/response validation.
 """
 from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from enum import Enum
+
+
+class UserRole(str, Enum):
+    """User roles."""
+    SUPERADMIN = "superadmin"
+    ADMIN = "admin"
+    USER = "user"
 
 
 class UserBase(BaseModel):
@@ -10,12 +19,25 @@ class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=100, description="Username")
     email: EmailStr = Field(..., description="Email address")
     full_name: str = Field(..., min_length=1, max_length=255, description="Full name")
+    role: UserRole = Field(default=UserRole.USER, description="User role")
 
 
 class UserCreate(UserBase):
     """Schema for user registration."""
     
     password: str = Field(..., min_length=6, max_length=100, description="Password")
+    page_access: Optional[dict] = Field(None, description="Page access permissions")
+
+
+class UserUpdate(BaseModel):
+    """Schema for user update."""
+    
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    role: Optional[UserRole] = None
+    page_access: Optional[dict] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(None, min_length=6, max_length=100)
 
 
 class UserLogin(BaseModel):
@@ -30,7 +52,9 @@ class UserResponse(UserBase):
     
     id: int
     is_active: bool
-    is_admin: bool
+    is_admin: bool  # Deprecated, kept for compatibility
+    role: UserRole
+    page_access: Optional[dict] = None
     
     class Config:
         from_attributes = True

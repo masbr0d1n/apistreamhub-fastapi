@@ -1,4 +1,4 @@
-# StreamHub API Migration Commands
+# Migration Commands
 
 ## Quick Start
 
@@ -108,27 +108,33 @@ python init_db.py
 After migration, verify with API:
 
 ```bash
-# 1. Create a test channel
-curl -X POST "http://localhost:8000/api/v1/channels/" \
+# 1. Get auth token
+TOKEN=$(curl -X POST "http://localhost:8000/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
+  -d '{"username":"testuser","password":"testpass"}' \
+  | jq -r '.data.access_token')
+
+# 2. Create a test channel
+CHANNEL_ID=$(curl -X POST "http://localhost:8000/api/v1/channels/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "name": "Test Channel",
     "category": "entertainment",
     "description": "Test streaming"
-  }'
+  }' | jq -r '.data.id')
 
-# 2. Turn on channel
-curl -X POST "http://localhost:8000/api/v1/streaming/channels/1/on-air" \
-  -H "Authorization: Bearer <token>"
+# 3. Turn on channel
+curl -X POST "http://localhost:8000/api/v1/streaming/channels/$CHANNEL_ID/on-air" \
+  -H "Authorization: Bearer $TOKEN"
 
-# 3. Check status
-curl -X GET "http://localhost:8000/api/v1/streaming/channels/1/status" \
-  -H "Authorization: Bearer <token>"
+# 4. Check status
+curl -X GET "http://localhost:8000/api/v1/streaming/channels/$CHANNEL_ID/status" \
+  -H "Authorization: Bearer $TOKEN"
 
-# 4. Turn off channel
-curl -X POST "http://localhost:8000/api/v1/streaming/channels/1/off-air" \
-  -H "Authorization: Bearer <token>"
+# 5. Turn off channel
+curl -X POST "http://localhost:8000/api/v1/streaming/channels/$CHANNEL_ID/off-air" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---

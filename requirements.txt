@@ -11,3 +11,4 @@ python-multipart>=0.0.9
 alembic>=1.13.0
 pytz>=2024.1
 python-dotenv>=1.0.0
+ffmpeg-python>=0.2.0

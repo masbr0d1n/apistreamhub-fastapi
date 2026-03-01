@@ -111,11 +111,12 @@ async def health_check():
 
 
 # Include API v1 routers
-from app.api.v1 import auth, channels, videos
+from app.api.v1 import auth, channels, videos, api_router
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(channels.router, prefix="/api/v1")
 app.include_router(videos.router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

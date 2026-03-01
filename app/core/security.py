@@ -5,9 +5,59 @@ from datetime import datetime, timedelta
 from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.exceptions import UnauthorizedException
+from app.core.exceptions import UnauthorizedException, StreamHubException
+from app.db.base import get_db
+from app.schemas.auth import UserResponse
+
+
+# OAuth2 scheme for JWT authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+# Dependency for protected routes
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> UserResponse:
+    """
+    Dependency to get current user from JWT token.
+    
+    This is used in protected routes like:
+        @router.get("/protected-route")
+        async def protected_route(current_user: UserResponse = Depends(get_current_user)):
+            return {"message": f"Hello {current_user.username}"}
+    
+    Args:
+        token: JWT token from Authorization header
+        db: Database session
+        
+    Returns:
+        Current authenticated user
+        
+    Raises:
+        UnauthorizedException: If token is invalid or user not found
+    """
+    # Import here to avoid circular dependency
+    from app.services.auth_service import AuthService
+    
+    try:
+        # Decode token
+        payload = decode_access_token(token)
+        
+        # Get user
+        auth_service = AuthService()
+        user = await auth_service.get_by_id(db, int(payload["sub"]))
+        
+        return UserResponse.model_validate(user)
+    except StreamHubException:
+        raise UnauthorizedException("Invalid or expired token")
+    except Exception:
+        raise UnauthorizedException("Could not validate credentials")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

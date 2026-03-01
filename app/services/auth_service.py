@@ -2,13 +2,14 @@
 Authentication service - business logic for auth operations.
 """
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from typing import Optional
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
-from app.schemas.auth import UserCreate, Token
+from app.models.user import User, UserRole
+from app.schemas.auth import UserCreate, UserUpdate, Token
 from app.core.security import verify_password, get_password_hash, create_access_token
-from app.core.exceptions import UnauthorizedException, ConflictException
+from app.core.exceptions import UnauthorizedException, ConflictException, ForbiddenException
 
 
 class AuthService:
@@ -42,20 +43,133 @@ class AuthService:
         if result.scalar_one_or_none():
             raise ConflictException(f"Email '{user_data.email}' already exists")
         
-        # Create new user
+        # Create new user with role
         hashed_password = get_password_hash(user_data.password)
         user = User(
             username=user_data.username,
             email=user_data.email,
             full_name=user_data.full_name,
-            hashed_password=hashed_password
+            hashed_password=hashed_password,
+            role=user_data.role if hasattr(user_data, 'role') else UserRole.USER,
+            page_access=getattr(user_data, 'page_access', None)
         )
+        
+        # Set is_admin based on role for compatibility
+        user.is_admin = user.role in [UserRole.ADMIN, UserRole.SUPERADMIN]
         
         db.add(user)
         await db.commit()
         await db.refresh(user)
         
         return user
+    
+    async def update_user(self, db: AsyncSession, user_id: int, user_data: UserUpdate, current_user: User) -> User:
+        """
+        Update user data.
+        
+        Args:
+            db: Database session
+            user_id: ID of user to update
+            user_data: Update data
+            current_user: User performing the update
+            
+        Returns:
+            Updated user
+            
+        Raises:
+            UnauthorizedException: If user not found
+            ForbiddenException: If insufficient permissions
+        """
+        result = await db.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise UnauthorizedException("User not found")
+        
+        # Check permissions
+        if not current_user.can_manage_user(user.role):
+            raise ForbiddenException("You don't have permission to manage this user")
+        
+        # Update fields
+        if user_data.email:
+            user.email = user_data.email
+        if user_data.full_name:
+            user.full_name = user_data.full_name
+        if user_data.role:
+            user.role = user_data.role
+            user.is_admin = user.role in [UserRole.ADMIN, UserRole.SUPERADMIN]
+        if user_data.page_access is not None:
+            user.page_access = user_data.page_access
+        if user_data.is_active is not None:
+            user.is_active = user_data.is_active
+        if user_data.password:
+            user.hashed_password = get_password_hash(user_data.password)
+        
+        await db.commit()
+        await db.refresh(user)
+        
+        return user
+    
+    async def delete_user(self, db: AsyncSession, user_id: int, current_user: User) -> bool:
+        """
+        Delete a user.
+        
+        Args:
+            db: Database session
+            user_id: ID of user to delete
+            current_user: User performing the deletion
+            
+        Returns:
+            True if deleted
+            
+        Raises:
+            UnauthorizedException: If user not found
+            ForbiddenException: If insufficient permissions or trying to delete self
+        """
+        # Can't delete yourself
+        if user_id == current_user.id:
+            raise ForbiddenException("Cannot delete your own account")
+        
+        result = await db.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise UnauthorizedException("User not found")
+        
+        # Check permissions using role directly (current_user is Pydantic model)
+        # Superadmin can delete anyone except themselves
+        # Admin can only delete regular users
+        if current_user.role != 'superadmin':
+            if current_user.role == 'admin' and user.role != 'user':
+                raise ForbiddenException("Admins can only delete regular users")
+            elif current_user.role == 'user':
+                raise ForbiddenException("Users cannot delete other users")
+        
+        await db.execute(
+            delete(User).where(User.id == user_id)
+        )
+        await db.commit()
+        
+        return True
+    
+    async def get_all_users(self, db: AsyncSession) -> list[User]:
+        """
+        Get all users.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            List of users
+        """
+        result = await db.execute(
+            select(User).order_by(User.created_at.desc())
+        )
+        return list(result.scalars().all())
     
     async def authenticate(self, db: AsyncSession, username: str, password: str) -> User:
         """

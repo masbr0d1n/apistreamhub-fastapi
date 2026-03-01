@@ -11,21 +11,13 @@ class VideoBase(BaseModel):
     
     title: str = Field(..., min_length=1, max_length=500, description="Video title")
     description: Optional[str] = Field(None, description="Video description")
-    youtube_id: str = Field(..., min_length=11, max_length=11, description="YouTube video ID (11 characters)")
+    youtube_id: Optional[str] = Field(None, max_length=255, description="YouTube video ID or filename")
     channel_id: int = Field(..., gt=0, description="Channel ID")
     thumbnail_url: Optional[str] = Field(None, description="Thumbnail URL")
-    duration: Optional[int] = Field(None, ge=0, description="Duration in seconds")
+    duration: Optional[float] = Field(None, ge=0, description="Duration in seconds")
     view_count: int = Field(default=0, ge=0, description="View count")
     is_live: bool = Field(default=False, description="Is live stream")
     is_active: bool = Field(default=True, description="Is active")
-    
-    @field_validator('youtube_id')
-    @classmethod
-    def validate_youtube_id(cls, v: str) -> str:
-        """Validate YouTube ID is exactly 11 characters."""
-        if len(v) != 11:
-            raise ValueError('YouTube ID must be exactly 11 characters')
-        return v
 
 
 class VideoCreate(VideoBase):
@@ -39,7 +31,7 @@ class VideoUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
     thumbnail_url: Optional[str] = None
-    duration: Optional[int] = Field(None, ge=0)
+    duration: Optional[float] = Field(None, ge=0)
     view_count: Optional[int] = Field(None, ge=0)
     is_live: Optional[bool] = None
     is_active: Optional[bool] = None
@@ -51,13 +43,24 @@ class VideoResponse(BaseModel):
     id: int
     title: str
     description: Optional[str]
-    youtube_id: str
+    youtube_id: Optional[str]
     channel_id: int
-    thumbnail_url: Optional[str]
-    duration: Optional[int]
+    video_url: Optional[str] = None  # URL for uploaded video files
+    thumbnail_url: Optional[str] = None
+    duration: Optional[float]
     view_count: int
     is_live: bool
     is_active: bool
+    
+    # Video metadata
+    width: Optional[int] = None
+    height: Optional[int] = None
+    video_codec: Optional[str] = None
+    video_bitrate: Optional[int] = None
+    audio_codec: Optional[str] = None
+    audio_bitrate: Optional[int] = None
+    fps: Optional[float] = None
+    
     created_at: datetime
     updated_at: datetime
     

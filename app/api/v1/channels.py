@@ -13,8 +13,10 @@ from app.schemas.channel import (
     ChannelListResponse,
     ChannelDetailResponse
 )
+from app.schemas.auth import UserResponse
 from app.services.channel_service import ChannelService
 from app.core.exceptions import StreamHubException
+from app.core.security import get_current_user
 
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -116,6 +118,7 @@ async def get_channel(
 )
 async def create_channel(
     channel_data: ChannelCreate,
+    current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> ChannelDetailResponse:
     """
@@ -150,10 +153,11 @@ async def create_channel(
 )
 async def create_channel_alt(
     channel_data: ChannelCreate,
+    current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> ChannelDetailResponse:
     """Create a new channel (alternative endpoint)."""
-    return await create_channel(channel_data, db)
+    return await create_channel(channel_data, current_user, db)
 
 
 @router.put(
@@ -165,6 +169,7 @@ async def create_channel_alt(
 async def update_channel(
     channel_id: int,
     channel_data: ChannelUpdate,
+    current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> ChannelDetailResponse:
     """
@@ -218,6 +223,7 @@ async def update_channel_alt(
 )
 async def delete_channel(
     channel_id: int,
+    current_user: UserResponse = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> dict:
     """
