@@ -3,7 +3,7 @@ Video model - database schema.
 """
 from datetime import datetime, date
 from typing import Optional, List
-from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, Boolean, Numeric, Date, JSON
+from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, Boolean, Numeric, Date, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -38,7 +38,7 @@ class Video(Base):
     fps: Mapped[Optional[float]] = mapped_column(Numeric, nullable=True)  # Frames per second
     
     # Additional fields
-    tags: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # JSON array for tags
+    tags: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)  # PostgreSQL array for tags
     expiry_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # Expiry date
     content_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # 'video' or 'image'
     
