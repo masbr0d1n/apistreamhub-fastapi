@@ -1,9 +1,9 @@
 """
 Video schemas - request/response validation.
 """
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
-from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime, date
 
 
 class VideoBase(BaseModel):
@@ -42,15 +42,16 @@ class VideoResponse(BaseModel):
     
     id: int
     title: str
-    description: Optional[str]
-    youtube_id: Optional[str]
+    description: Optional[str] = None
+    youtube_id: Optional[str] = None
     channel_id: int
-    video_url: Optional[str] = None  # URL for uploaded video files
+    video_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
-    duration: Optional[float]
-    view_count: int
-    is_live: bool
-    is_active: bool
+    thumbnail_data: Optional[str] = None
+    duration: Optional[float] = None
+    view_count: int = 0
+    is_live: bool = False
+    is_active: bool = True
     
     # Video metadata
     width: Optional[int] = None
@@ -60,6 +61,12 @@ class VideoResponse(BaseModel):
     audio_codec: Optional[str] = None
     audio_bitrate: Optional[int] = None
     fps: Optional[float] = None
+    
+    # Additional fields
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    expiry_date: Optional[date] = None
+    content_type: Optional[str] = None
     
     created_at: datetime
     updated_at: datetime

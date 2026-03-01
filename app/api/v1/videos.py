@@ -63,11 +63,43 @@ async def list_videos(
             db, skip, limit, channel_id, is_active, category, search
         )
 
+        # Manually construct response to include category from channel
+        video_responses = []
+        for video in videos:
+            video_dict = {
+                "id": video.id,
+                "title": video.title,
+                "description": video.description,
+                "youtube_id": video.youtube_id,
+                "channel_id": video.channel_id,
+                "video_url": video.video_url,
+                "thumbnail_url": video.thumbnail_url,
+                "thumbnail_data": video.thumbnail_data,
+                "duration": float(video.duration) if video.duration else None,
+                "view_count": video.view_count,
+                "is_live": video.is_live,
+                "is_active": video.is_active,
+                "width": video.width,
+                "height": video.height,
+                "video_codec": video.video_codec,
+                "video_bitrate": video.video_bitrate,
+                "audio_codec": video.audio_codec,
+                "audio_bitrate": video.audio_bitrate,
+                "fps": float(video.fps) if video.fps else None,
+                "category": video.channel.category if video.channel else None,
+                "tags": video.tags if hasattr(video, 'tags') else None,
+                "expiry_date": video.expiry_date if hasattr(video, 'expiry_date') else None,
+                "content_type": video.content_type if hasattr(video, 'content_type') else None,
+                "created_at": video.created_at,
+                "updated_at": video.updated_at,
+            }
+            video_responses.append(VideoResponse(**video_dict))
+
         return VideoListResponse(
             status=True,
             statusCode=200,
             message="Success",
-            data=[VideoResponse.model_validate(v) for v in videos],
+            data=video_responses,
             count=len(videos)
         )
     except StreamHubException as e:
