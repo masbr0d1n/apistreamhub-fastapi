@@ -1,13 +1,9 @@
 """
-Video API routes - With Upload Support + FFmpeg Integration + Multi-format Support.
+Video API routes - With Upload Support + FFmpeg Integration.
 """
 import uuid
-import json
-import base64
-import io
 from typing import Optional
 from pathlib import Path
-from datetime import datetime
 from fastapi import APIRouter, Depends, status, Query, UploadFile, File, Form, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,9 +26,6 @@ video_service = VideoService()
 # Configure upload directory
 UPLOAD_DIR = Path("/app/uploads/videos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-# Allowed file extensions
-ALLOWED_EXTENSIONS = {'.mp4', '.jpg', '.jpeg', '.png', '.bmp', '.gif'}
 
 
 @router.get(
@@ -285,42 +278,39 @@ async def get_video_by_youtube_id(
 @router.post(
     "/upload",
     response_model=VideoDetailResponse,
-    summary="Upload content file with FFmpeg/Pillow processing",
-    description="Upload MP4 video or image file with UUID filename, auto-generate thumbnail and extract metadata. Supports MP4, JPG, JPEG, PNG, BMP, GIF."
+    summary="Upload video file with FFmpeg processing",
+    description="Upload MP4 video file with UUID filename, auto-generate thumbnail and extract metadata"
 )
 async def upload_video(
     title: str = Form(...),
     channel_id: int = Form(...),
     category: str = Form(default="entertainment"),
     description: Optional[str] = Form(None),
-    expiry_date: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
     file: UploadFile = File(...),
     thumbnail: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Upload content file (video or image) with UUID filename, auto-generate thumbnail, and extract metadata.
+    Upload video file with UUID filename, auto-generate thumbnail, and extract metadata.
     
-    Supports:
-    - Videos: MP4 with FFmpeg thumbnail generation and metadata extraction
-    - Images: JPG, JPEG, PNG, BMP, GIF with Pillow thumbnail generation
-    - Tags: JSON array or comma-separated string
-    - Expiry Date: Optional date string
+    - Generates UUID v4 for filename
+    - Saves to /app/uploads/videos/
+    - Auto-generates thumbnail using FFmpeg
+    - Extracts metadata (resolution, fps, codecs, bitrate, duration)
+    - Stores everything in database
+    - Optionally accepts custom thumbnail image
     
     Args:
-        title: Content title
+        title: Video title
         channel_id: Channel ID
-        category: Content category
-        description: Content description (optional)
-        expiry_date: Expiry date in YYYY-MM-DD format (optional)
-        tags: Tags as JSON array or comma-separated string (optional)
-        file: Video or image file
+        category: Video category
+        description: Video description (optional)
+        file: MP4 video file
         thumbnail: Custom thumbnail image file (optional)
         db: Database session
         
     Returns:
-        Created content record with metadata
+        Created video record with metadata
     """
     
     # Validate file type
@@ -328,76 +318,39 @@ async def upload_video(
         raise HTTPException(status_code=400, detail="No file provided")
     
     file_extension = Path(file.filename).suffix.lower()
-    if file_extension not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unsupported file type '{file_extension}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
-        )
+    if file_extension != '.mp4':
+        raise HTTPException(status_code=400, detail="Only MP4 files are supported")
     
     # Generate UUID for filename
     uuid_filename = f"{uuid.uuid4()}{file_extension}"
     file_path = UPLOAD_DIR / uuid_filename
     
-    # Save file
+    # Save video file
     try:
         contents = await file.read()
         with open(file_path, "wb") as f:
             f.write(contents)
-        print(f"✓ File saved: {uuid_filename} ({len(contents)} bytes)")
+        print(f"✓ Video saved: {uuid_filename}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
-    # Determine content type and process accordingly
-    is_video = file_extension == '.mp4'
-    content_type = "video" if is_video else "image"
-    
-    # Initialize metadata
+    # Process video with FFmpeg
     thumbnail_data = None
     metadata = {}
     
-    if is_video:
-        # Process video with FFmpeg
-        try:
-            # Extract metadata
-            metadata = ffmpeg_service.extract_metadata(str(file_path))
-            print(f"✓ Video metadata: {metadata.get('width')}x{metadata.get('height')} @ {metadata.get('fps')} fps, {metadata.get('duration')}s")
-            
-            # Generate thumbnail
-            thumbnail_data = ffmpeg_service.generate_thumbnail(str(file_path))
-            if thumbnail_data:
-                print(f"✓ Video thumbnail generated (base64: {len(thumbnail_data)} chars)")
-            
-        except Exception as e:
-            print(f"⚠ FFmpeg processing failed: {str(e)}")
-            # Set basic metadata even if FFmpeg fails
-            metadata = {"duration": None, "fps": None, "video_codec": None, "audio_codec": None}
-    else:
-        # Process image with Pillow
-        try:
-            from PIL import Image
-            
-            with Image.open(file_path) as img:
-                metadata = {
-                    "width": img.width,
-                    "height": img.height,
-                    "duration": None,
-                    "fps": None,
-                    "video_codec": None,
-                    "audio_codec": None,
-                }
-                print(f"✓ Image metadata: {img.width}x{img.height}")
-                
-                # Generate thumbnail
-                img_copy = img.copy()
-                img_copy.thumbnail((320, 180))
-                buffer = io.BytesIO()
-                img_copy.save(buffer, format='JPEG')
-                thumbnail_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                print(f"✓ Image thumbnail generated (base64: {len(thumbnail_data)} chars)")
-                
-        except Exception as e:
-            print(f"⚠ Image processing failed: {str(e)}")
-            metadata = {"width": None, "height": None, "duration": None, "fps": None, "video_codec": None, "audio_codec": None}
+    try:
+        # Extract metadata
+        metadata = ffmpeg_service.extract_metadata(str(file_path))
+        print(f"✓ Metadata extracted: {metadata.get('width')}x{metadata.get('height')} @ {metadata.get('fps')} fps")
+        
+        # Generate thumbnail
+        thumbnail_data = ffmpeg_service.generate_thumbnail(str(file_path))
+        if thumbnail_data:
+            print(f"✓ Thumbnail generated (base64: {len(thumbnail_data)} chars)")
+        
+    except Exception as e:
+        print(f"⚠ FFmpeg processing failed: {str(e)}")
+        # Continue without metadata/thumbnail
     
     # Handle custom thumbnail if provided
     thumbnail_url = None
@@ -417,33 +370,12 @@ async def upload_video(
         except Exception as e:
             print(f"⚠ Failed to save custom thumbnail: {str(e)}")
     
-    # Parse tags
-    tags_list = None
-    if tags:
-        try:
-            # Try to parse as JSON array
-            tags_list = json.loads(tags)
-            if not isinstance(tags_list, list):
-                tags_list = tags_list.split(',')
-        except json.JSONDecodeError:
-            # Fallback to comma-separated
-            tags_list = [t.strip() for t in tags.split(',') if t.strip()]
-        print(f"✓ Tags parsed: {tags_list}")
-    
-    # Parse expiry date
-    expiry_date_obj = None
-    if expiry_date:
-        try:
-            expiry_date_obj = datetime.strptime(expiry_date, '%Y-%m-%d').date()
-            print(f"✓ Expiry date: {expiry_date_obj}")
-        except ValueError as e:
-            print(f"⚠ Invalid expiry date format: {expiry_date} (expected YYYY-MM-DD)")
-    
-    # Verify channel exists
+    # Create video record
     from sqlalchemy import select
     from app.models.channel import Channel
     from app.models.video import Video
     
+    # Verify channel exists
     result = await db.execute(select(Channel).where(Channel.id == channel_id))
     channel = result.scalar_one_or_none()
     if not channel:
@@ -451,15 +383,15 @@ async def upload_video(
         file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=404, detail="Channel not found")
     
-    # Build content data with metadata
-    content_data = {
+    # Build video data with metadata
+    video_data = {
         "title": title,
         "description": description,
-        "youtube_id": None,
+        "youtube_id": None,  # No YouTube ID for uploaded videos
         "channel_id": channel_id,
         "video_url": f"/uploads/videos/{uuid_filename}",
         "thumbnail_url": thumbnail_url,
-        "thumbnail_data": thumbnail_data,
+        "thumbnail_data": thumbnail_data,  # Base64 from FFmpeg
         "duration": metadata.get("duration"),
         "width": metadata.get("width"),
         "height": metadata.get("height"),
@@ -467,30 +399,18 @@ async def upload_video(
         "video_codec": metadata.get("video_codec"),
         "audio_codec": metadata.get("audio_codec"),
         "is_active": True,
-        "tags": tags_list,
-        "expiry_date": expiry_date_obj,
-        "content_type": content_type,
     }
     
-    content = Video(**content_data)
-    db.add(content)
+    video = Video(**video_data)
+    db.add(video)
     await db.commit()
-    await db.refresh(content)
+    await db.refresh(video)
     
-    print(f"✓ Content record created: ID={content.id}, Type={content_type}, Title={title}")
-    
-    # Construct response with category
-    response_data = content_data.copy()
-    response_data["id"] = content.id
-    response_data["view_count"] = content.view_count
-    response_data["is_live"] = content.is_live
-    response_data["created_at"] = content.created_at
-    response_data["updated_at"] = content.updated_at
-    response_data["category"] = channel.category
+    print(f"✓ Video record created: ID={video.id}, Title={title}")
     
     return VideoDetailResponse(
         status=True,
         statusCode=201,
-        message=f"{content_type.capitalize()} uploaded successfully. Filename: {uuid_filename}",
-        data=VideoResponse(**response_data)
+        message=f"Video uploaded successfully. Filename: {uuid_filename}",
+        data=VideoResponse.model_validate(video)
     )
