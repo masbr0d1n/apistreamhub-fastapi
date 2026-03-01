@@ -1,12 +1,13 @@
 """
 FFmpeg Service - Video thumbnail generation and metadata extraction
+Using subprocess with scale filter (FIXED - more reliable)
 """
-import ffmpeg
+import subprocess
+import json
+import base64
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-import base64
-import io
 
 
 class FFmpegService:
@@ -24,12 +25,12 @@ class FFmpegService:
         width: int = 320
     ) -> Optional[str]:
         """
-        Generate thumbnail from video at specified timestamp
+        Generate thumbnail from video at specified timestamp using scale filter
         
         Args:
             video_path: Path to video file
             timestamp: Time position for thumbnail (seconds)
-            width: Thumbnail width in pixels
+            width: Thumbnail width in pixels (height auto-calculated)
             
         Returns:
             Base64 encoded thumbnail image or None
@@ -38,37 +39,55 @@ class FFmpegService:
             video_filename = Path(video_path).stem
             thumbnail_path = self.thumbnail_dir / f"{video_filename}_thumb.jpg"
             
-            # Generate thumbnail using FFmpeg
-            (
-                ffmpeg
-                .input(video_path, ss=timestamp)
-                .output(
-                    str(thumbnail_path),
-                    vframes=1,
-                    format='image2',
-                    vcodec='mjpeg',
-                    s=f'{width}x-1'  # Width specified, height auto-calculated
-                )
-                .overwrite_output()
-                .run(capture_stdout=True, capture_stderr=True)
+            # Generate thumbnail using FFmpeg with scale filter (more reliable)
+            # Using -vf "scale=320:-1" instead of -s "320x-1"
+            cmd = [
+                "ffmpeg",
+                "-i", video_path,
+                "-ss", str(timestamp),
+                "-vframes", "1",
+                "-vf", f"scale={width}:-1",  # Use scale filter instead of -s
+                "-y",  # Overwrite if exists
+                str(thumbnail_path)
+            ]
+            
+            # Run FFmpeg
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=30,
+                check=False
             )
             
-            # Convert to base64
-            with open(thumbnail_path, 'rb') as f:
-                thumbnail_base64 = base64.b64encode(f.read()).decode('utf-8')
-            
-            # Clean up thumbnail file
-            thumbnail_path.unlink()
-            
-            return thumbnail_base64
-            
+            if result.returncode == 0 and thumbnail_path.exists():
+                # Success - read file and convert to base64
+                with open(thumbnail_path, 'rb') as f:
+                    thumbnail_base64 = base64.b64encode(f.read()).decode('utf-8')
+                
+                # Clean up thumbnail file
+                thumbnail_path.unlink()
+                
+                print(f"✓ Thumbnail generated: {len(thumbnail_base64)} chars")
+                return thumbnail_base64
+                
+            else:
+                # FFmpeg failed
+                stderr_output = result.stderr.decode('utf-8', errors='ignore')
+                print(f"✗ FFmpeg thumbnail failed (code {result.returncode})")
+                print(f"  Command: {' '.join(cmd)}")
+                print(f"  STDERR: {stderr_output[:500]}...")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            print("✗ FFmpeg thumbnail generation timed out")
+            return None
         except Exception as e:
-            print(f"Error generating thumbnail: {e}")
+            print(f"✗ Error generating thumbnail: {e}")
             return None
     
     def extract_metadata(self, video_path: str) -> Dict[str, Any]:
         """
-        Extract video metadata using FFmpeg probe
+        Extract video metadata using ffprobe
         
         Args:
             video_path: Path to video file
@@ -77,7 +96,25 @@ class FFmpegService:
             Dictionary containing video metadata
         """
         try:
-            probe = ffmpeg.probe(video_path)
+            # Use ffprobe to get JSON metadata
+            cmd = [
+                "ffprobe",
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                video_path
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=30,
+                check=True,
+                text=True
+            )
+            
+            probe = json.loads(result.stdout)
             
             metadata = {
                 'duration': float(probe['format'].get('duration', 0)),
@@ -122,19 +159,27 @@ class FFmpegService:
                     'audio_channels': int(audio_stream.get('channels', 0)) if 'channels' in audio_stream else None,
                 })
             
+            print(f"✓ Metadata extracted: {metadata.get('width')}x{metadata.get('height')} @ {metadata.get('fps')} fps")
             return metadata
             
+        except subprocess.TimeoutExpired:
+            print("✗ Metadata extraction timed out")
+            return self._get_default_metadata()
         except Exception as e:
-            print(f"Error extracting metadata: {e}")
-            return {
-                'duration': 0,
-                'width': 0,
-                'height': 0,
-                'fps': 0,
-                'bitrate': 0,
-                'video_codec': '',
-                'audio_codec': '',
-            }
+            print(f"✗ Error extracting metadata: {e}")
+            return self._get_default_metadata()
+    
+    def _get_default_metadata(self) -> Dict[str, Any]:
+        """Return default metadata when extraction fails"""
+        return {
+            'duration': 0,
+            'width': 0,
+            'height': 0,
+            'fps': 0,
+            'bitrate': 0,
+            'video_codec': '',
+            'audio_codec': '',
+        }
     
     def get_video_info(self, video_path: str) -> Dict[str, Any]:
         """
