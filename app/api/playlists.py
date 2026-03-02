@@ -164,6 +164,27 @@ async def create_playlist(
     })
     
     row = result.fetchone()
+    
+    # Insert items if provided
+    items_count = 0
+    total_duration = 0
+    if playlist.items:
+        items_count, total_duration = await insert_playlist_items(playlist_id, playlist.items, db)
+        
+        # Update playlist stats
+        update_stats = text("""
+            UPDATE playlists
+            SET items_count = :items_count,
+                total_duration = :total_duration,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :playlist_id
+        """)
+        await db.execute(update_stats, {
+            "playlist_id": playlist_id,
+            "items_count": items_count,
+            "total_duration": total_duration,
+        })
+    
     await db.commit()
     
     return PlaylistResponse(
@@ -174,12 +195,46 @@ async def create_playlist(
         transition=row[4],
         loop=row[5],
         is_published=row[6],
-        items_count=row[7],
-        total_duration=row[8],
-        used_in=row[9],
+        items_count=items_count,
+        total_duration=total_duration,
+        used_in=0,
         created_at=row[10],
         updated_at=row[11],
     )
+
+
+async def insert_playlist_items(
+    playlist_id: str,
+    items: List,
+    db: AsyncSession
+):
+    """Helper function to insert playlist items"""
+    if not items:
+        return 0, 0
+    
+    total_duration = 0
+    for idx, item in enumerate(items, start=1):
+        item_id = str(uuid.uuid4())
+        item_order = item.get('order', idx)
+        
+        insert_query = text("""
+            INSERT INTO playlist_items (id, playlist_id, media_id, name, duration, "order", media_type)
+            VALUES (:id, :playlist_id, :media_id, :name, :duration, :order, :media_type)
+        """)
+        
+        await db.execute(insert_query, {
+            "id": item_id,
+            "playlist_id": playlist_id,
+            "media_id": item.get('media_id', ''),
+            "name": item.get('name', 'Unknown'),
+            "duration": item.get('duration', 10),
+            "order": item_order,
+            "media_type": item.get('media_type', 'video'),
+        })
+        
+        total_duration += item.get('duration', 10)
+    
+    return len(items), total_duration
 
 
 @router.post("/draft", response_model=PlaylistResponse, status_code=status.HTTP_201_CREATED)
@@ -208,6 +263,27 @@ async def save_draft(
     })
     
     row = result.fetchone()
+    
+    # Insert items if provided
+    items_count = 0
+    total_duration = 0
+    if playlist.items:
+        items_count, total_duration = await insert_playlist_items(playlist_id, playlist.items, db)
+        
+        # Update playlist stats
+        update_stats = text("""
+            UPDATE playlists
+            SET items_count = :items_count,
+                total_duration = :total_duration,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :playlist_id
+        """)
+        await db.execute(update_stats, {
+            "playlist_id": playlist_id,
+            "items_count": items_count,
+            "total_duration": total_duration,
+        })
+    
     await db.commit()
     
     return PlaylistResponse(
@@ -218,8 +294,8 @@ async def save_draft(
         transition=row[4],
         loop=row[5],
         is_published=False,
-        items_count=0,
-        total_duration=0,
+        items_count=items_count,
+        total_duration=total_duration,
         used_in=0,
         created_at=row[10],
         updated_at=row[11],

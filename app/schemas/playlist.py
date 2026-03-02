@@ -18,8 +18,18 @@ class PlaylistBase(BaseModel):
     loop: bool = True
 
 
+class PlaylistItemCreateSimple(BaseModel):
+    """Simple item schema for playlist creation"""
+    media_id: str
+    name: str
+    duration: int
+    order: int
+    media_type: str = "video"
+
+
 class PlaylistCreate(PlaylistBase):
     is_published: bool = False  # false = draft, true = published
+    items: Optional[List[PlaylistItemCreateSimple]] = None  # Items to add to playlist
 
 
 class PlaylistUpdate(BaseModel):
