@@ -1,56 +1,47 @@
 """
 Playlist Schemas
-Request and response models for playlists
+Pydantic models for playlist API
 """
-from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
+
+
+# ==================== Playlist ====================
 
 class PlaylistBase(BaseModel):
-    """Base playlist schema"""
     name: str = Field(..., min_length=1, max_length=255)
-    channel_id: int = Field(..., gt=0)
-    start_time: datetime
     description: Optional[str] = None
+    default_duration: int = Field(default=10, ge=1, le=3600)  # seconds
+    transition: str = Field(default="fade", pattern="^(fade|slide|none)$")
+    loop: bool = True
 
 
 class PlaylistCreate(PlaylistBase):
-    """Schema for creating a playlist"""
-    pass
+    is_published: bool = False  # false = draft, true = published
 
 
 class PlaylistUpdate(BaseModel):
-    """Schema for updating a playlist"""
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    channel_id: Optional[int] = Field(None, gt=0)
-    start_time: Optional[datetime] = None
-    status: Optional[str] = None
     description: Optional[str] = None
+    default_duration: Optional[int] = Field(None, ge=1, le=3600)
+    transition: Optional[str] = Field(None, pattern="^(fade|slide|none)$")
+    loop: Optional[bool] = None
+    is_published: Optional[bool] = None
 
 
-class PlaylistResponse(PlaylistBase):
-    """Schema for playlist response"""
-    id: int
-    status: str
-    video_count: int
-    created_at: datetime
-    updated_at: datetime
-    channel_name: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
-class PlaylistListItem(BaseModel):
-    """Schema for single playlist item in list"""
-    id: int
+class PlaylistResponse(BaseModel):
+    id: str
     name: str
-    channel_id: int
-    channel_name: str
-    start_time: datetime
-    status: str
-    video_count: int
+    description: Optional[str]
+    default_duration: int
+    transition: str
+    loop: bool
+    is_published: bool
+    items_count: int
+    total_duration: int  # in seconds
+    used_in: int
     created_at: datetime
     updated_at: datetime
 
@@ -58,35 +49,37 @@ class PlaylistListItem(BaseModel):
         from_attributes = True
 
 
-class PlaylistListResponse(BaseModel):
-    """Schema for playlist list response"""
-    status: bool = True
-    statusCode: int = 200
-    message: str = "Success"
-    data: List[PlaylistListItem]
+class PlaylistDetailResponse(PlaylistResponse):
+    items: List['PlaylistItemResponse']
 
 
-class PlaylistDetailResponse(BaseModel):
-    """Schema for single playlist response"""
-    status: bool = True
-    statusCode: int = 200
-    message: str = "Success"
-    data: PlaylistResponse
+# Add missing PlaylistListResponse
+PlaylistListResponse = List[PlaylistResponse]
 
 
-class PlaylistVideoAdd(BaseModel):
-    """Schema for adding video to playlist"""
-    video_id: int = Field(..., gt=0)
-    order: Optional[int] = 0
+# ==================== Playlist Item ====================
+
+class PlaylistItemBase(BaseModel):
+    media_id: str = Field(..., min_length=1)
+    duration: int = Field(..., ge=1, le=86400)  # seconds (max 24h)
 
 
-class PlaylistVideoResponse(BaseModel):
-    """Schema for playlist video response"""
-    id: int
-    video_id: int
-    video_title: Optional[str] = None
-    video_url: Optional[str] = None
+class PlaylistItemCreate(PlaylistItemBase):
+    pass
+
+
+class PlaylistItemResponse(BaseModel):
+    id: str
+    playlist_id: str
+    media_id: str
+    name: str  # Media name
+    duration: int
     order: int
+    media_type: str  # 'video' or 'image'
 
     class Config:
         from_attributes = True
+
+
+# Update forward references
+PlaylistDetailResponse.model_rebuild()

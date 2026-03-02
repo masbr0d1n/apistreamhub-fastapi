@@ -1,6 +1,8 @@
-from app.models.user import User
-from app.models.channel import Channel
-from app.models.video import Video
-from app.models.playlist import Playlist, PlaylistVideo
+"""
+Database models
+"""
+from sqlalchemy.orm import DeclarativeBase
 
-__all__ = ["User", "Channel", "Video", "Playlist", "PlaylistVideo"]
+from app.models.user import User, UserRole
+from app.models.video import Video
+from app.models.channel import Channel

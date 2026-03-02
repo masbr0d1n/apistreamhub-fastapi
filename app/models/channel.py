@@ -23,7 +23,6 @@ class Channel(Base):
     
     # Relationships
     videos = relationship("Video", back_populates="channel")
-    playlists = relationship("Playlist", back_populates="channel", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Channel(id={self.id}, name='{self.name}', category={self.category})>"

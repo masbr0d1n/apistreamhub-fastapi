@@ -47,7 +47,6 @@ class Video(Base):
     
     # Relationships
     channel = relationship("Channel", back_populates="videos")
-    playlists = relationship("PlaylistVideo", back_populates="video")
     
     @property
     def resolution(self) -> Optional[str]:

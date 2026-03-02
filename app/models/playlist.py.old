@@ -1,0 +1,48 @@
+"""
+Playlist Models
+Database models for playlists and playlist items
+"""
+
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+from app.database import Base
+
+
+class Playlist(Base):
+    """Playlist model"""
+    __tablename__ = "playlists"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    default_duration = Column(Integer, default=10)  # seconds
+    transition = Column(String(50), default="fade")  # fade, slide, none
+    loop = Column(Boolean, default=True)
+    is_published = Column(Boolean, default=False)  # false = draft
+
+    # Stats (denormalized for performance)
+    items_count = Column(Integer, default=0)
+    total_duration = Column(Integer, default=0)  # seconds
+    used_in = Column(Integer, default=0)  # number of screens using this
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    items = relationship("PlaylistItem", back_populates="playlist", cascade="all, delete-orphan")
+
+
+class PlaylistItem(Base):
+    """Playlist item (media in timeline)"""
+    __tablename__ = "playlist_items"
+
+    id = Column(String, primary_key=True, index=True)
+    playlist_id = Column(String, ForeignKey("playlists.id"), nullable=False)
+    media_id = Column(String, ForeignKey("videos.id"), nullable=False)
+    duration = Column(Integer, nullable=False)  # seconds
+    order = Column(Integer, nullable=False)  # position in timeline
+
+    # Relationship
+    playlist = relationship("Playlist", back_populates="items")
