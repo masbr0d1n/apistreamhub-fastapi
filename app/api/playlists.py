@@ -211,29 +211,34 @@ async def insert_playlist_items(
     """Helper function to insert playlist items"""
     if not items:
         return 0, 0
-    
+
     total_duration = 0
     for idx, item in enumerate(items, start=1):
         item_id = str(uuid.uuid4())
-        item_order = item.get('order', idx)
-        
+        # Use attribute access for Pydantic models, not dict.get()
+        item_order = item.order if item.order else idx
+        item_media_id = str(item.media_id) if item.media_id else ''
+        item_name = item.name if item.name else 'Unknown'
+        item_duration = int(item.duration) if item.duration else 10
+        item_media_type = item.media_type if item.media_type else 'video'
+
         insert_query = text("""
             INSERT INTO playlist_items (id, playlist_id, media_id, name, duration, "order", media_type)
             VALUES (:id, :playlist_id, :media_id, :name, :duration, :order, :media_type)
         """)
-        
+
         await db.execute(insert_query, {
             "id": item_id,
             "playlist_id": playlist_id,
-            "media_id": item.get('media_id', ''),
-            "name": item.get('name', 'Unknown'),
-            "duration": item.get('duration', 10),
+            "media_id": item_media_id,
+            "name": item_name,
+            "duration": item_duration,
             "order": item_order,
-            "media_type": item.get('media_type', 'video'),
+            "media_type": item_media_type,
         })
-        
-        total_duration += item.get('duration', 10)
-    
+
+        total_duration += item_duration
+
     return len(items), total_duration
 
 
