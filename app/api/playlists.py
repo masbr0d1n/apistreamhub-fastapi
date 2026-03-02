@@ -144,6 +144,16 @@ async def create_playlist(
 ):
     """Create a new playlist or draft"""
     import uuid
+
+    # Check if playlist name already exists
+    name_check_query = text("SELECT id FROM playlists WHERE name = :name")
+    existing = await db.execute(name_check_query, {"name": playlist.name})
+    if existing.fetchone():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Playlist with name '{playlist.name}' already exists"
+        )
+
     playlist_id = str(uuid.uuid4())
     
     query = text("""
@@ -312,6 +322,15 @@ async def update_playlist(
     db: AsyncSession = Depends(get_db),
 ):
     """Update existing playlist and replace all items"""
+    # Check if name already exists in OTHER playlists
+    name_check_query = text("SELECT id FROM playlists WHERE name = :name AND id != :playlist_id")
+    existing = await db.execute(name_check_query, {"name": playlist.name, "playlist_id": playlist_id})
+    if existing.fetchone():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Playlist with name '{playlist.name}' already exists"
+        )
+
     # Update playlist properties
     update_query = text("""
         UPDATE playlists
