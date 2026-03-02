@@ -305,6 +305,90 @@ async def save_draft(
     )
 
 
+@router.put("/{playlist_id}", response_model=PlaylistResponse)
+async def update_playlist(
+    playlist_id: str,
+    playlist: PlaylistCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update existing playlist and replace all items"""
+    # Update playlist properties
+    update_query = text("""
+        UPDATE playlists
+        SET name = :name,
+            description = :description,
+            default_duration = :default_duration,
+            transition = :transition,
+            loop = :loop,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = :playlist_id
+        RETURNING id, name, description, default_duration, transition, loop,
+                  is_published, items_count, total_duration, used_in,
+                  created_at, updated_at
+    """)
+    
+    result = await db.execute(update_query, {
+        "playlist_id": playlist_id,
+        "name": playlist.name,
+        "description": playlist.description,
+        "default_duration": playlist.default_duration,
+        "transition": playlist.transition,
+        "loop": playlist.loop,
+    })
+    
+    row = result.fetchone()
+    
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found"
+        )
+    
+    # Delete existing items
+    delete_items_query = text("""
+        DELETE FROM playlist_items
+        WHERE playlist_id = :playlist_id
+    """)
+    await db.execute(delete_items_query, {"playlist_id": playlist_id})
+    
+    # Insert new items if provided
+    items_count = 0
+    total_duration = 0
+    if playlist.items:
+        items_count, total_duration = await insert_playlist_items(playlist_id, playlist.items, db)
+        
+        # Update playlist stats
+        update_stats = text("""
+            UPDATE playlists
+            SET items_count = :items_count,
+                total_duration = :total_duration,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :playlist_id
+        """)
+        await db.execute(update_stats, {
+            "playlist_id": playlist_id,
+            "items_count": items_count,
+            "total_duration": total_duration,
+        })
+    
+    await db.commit()
+    
+    return PlaylistResponse(
+        id=row[0],
+        name=row[1],
+        description=row[2],
+        default_duration=row[3],
+        transition=row[4],
+        loop=row[5],
+        is_published=row[6],
+        items_count=items_count,
+        total_duration=total_duration,
+        used_in=row[9],
+        created_at=row[10],
+        updated_at=row[11],
+    )
+
+
 @router.post("/{playlist_id}/items", response_model=PlaylistItemResponse, status_code=status.HTTP_201_CREATED)
 async def add_playlist_item(
     playlist_id: str,
