@@ -218,23 +218,21 @@ async def insert_playlist_items(
         # Use attribute access for Pydantic models, not dict.get()
         item_order = item.order if item.order else idx
         item_media_id = str(item.media_id) if item.media_id else ''
-        item_name = item.name if item.name else 'Unknown'
         item_duration = int(item.duration) if item.duration else 10
-        item_media_type = item.media_type if item.media_type else 'video'
 
+        # Insert only columns that exist in the table
+        # name and media_type can be fetched via JOIN from videos table
         insert_query = text("""
-            INSERT INTO playlist_items (id, playlist_id, media_id, name, duration, "order", media_type)
-            VALUES (:id, :playlist_id, :media_id, :name, :duration, :order, :media_type)
+            INSERT INTO playlist_items (id, playlist_id, media_id, duration, "order")
+            VALUES (:id, :playlist_id, :media_id, :duration, :order)
         """)
 
         await db.execute(insert_query, {
             "id": item_id,
             "playlist_id": playlist_id,
             "media_id": item_media_id,
-            "name": item_name,
             "duration": item_duration,
             "order": item_order,
-            "media_type": item_media_type,
         })
 
         total_duration += item_duration
