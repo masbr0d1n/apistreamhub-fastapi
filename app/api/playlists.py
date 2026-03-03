@@ -142,17 +142,25 @@ async def create_playlist(
     playlist: PlaylistCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new playlist or draft"""
+    """Create a new playlist or draft, or update existing draft with same name"""
     import uuid
 
     # Check if playlist name already exists
-    name_check_query = text("SELECT id FROM playlists WHERE name = :name")
+    name_check_query = text("SELECT id, is_published FROM playlists WHERE name = :name")
     existing = await db.execute(name_check_query, {"name": playlist.name})
-    if existing.fetchone():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Playlist with name '{playlist.name}' already exists"
-        )
+    row = existing.fetchone()
+
+    if row:
+        existing_id, is_published = row
+        # If existing is published, don't allow overwrite
+        if is_published:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Playlist with name '{playlist.name}' already exists (published)"
+            )
+        # If existing is a draft, delete it first (will be replaced)
+        delete_query = text("DELETE FROM playlists WHERE id = :playlist_id")
+        await db.execute(delete_query, {"playlist_id": existing_id})
 
     playlist_id = str(uuid.uuid4())
     
@@ -323,13 +331,21 @@ async def update_playlist(
 ):
     """Update existing playlist and replace all items"""
     # Check if name already exists in OTHER playlists
-    name_check_query = text("SELECT id FROM playlists WHERE name = :name AND id != :playlist_id")
+    name_check_query = text("SELECT id, is_published FROM playlists WHERE name = :name AND id != :playlist_id")
     existing = await db.execute(name_check_query, {"name": playlist.name, "playlist_id": playlist_id})
-    if existing.fetchone():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Playlist with name '{playlist.name}' already exists"
-        )
+    row = existing.fetchone()
+    
+    if row:
+        existing_id, is_published = row
+        # If existing is published, don't allow rename
+        if is_published:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Playlist with name '{playlist.name}' already exists (published)"
+            )
+        # If existing is a draft, delete it first
+        delete_query = text("DELETE FROM playlists WHERE id = :existing_id")
+        await db.execute(delete_query, {"existing_id": existing_id})
 
     # Update playlist properties
     update_query = text("""
