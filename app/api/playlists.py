@@ -98,7 +98,8 @@ async def get_playlist(
     # Get items
     items_query = text("""
         SELECT pi.id, pi.playlist_id, pi.media_id, v.title as name,
-               pi.duration, pi."order", v.content_type as media_type
+               pi.duration, pi."order", v.content_type as media_type,
+               v.thumbnail_data, v.thumbnail_url
         FROM playlist_items pi
         LEFT JOIN videos v ON pi.media_id = CAST(v.id AS VARCHAR)
         WHERE pi.playlist_id = :playlist_id
@@ -116,6 +117,8 @@ async def get_playlist(
             duration=item_row[4],
             order=item_row[5],
             media_type=item_row[6] or "video",
+            thumbnail_data=item_row[7],
+            thumbnail_url=item_row[8],
         ))
     
     await db.commit()

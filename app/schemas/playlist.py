@@ -86,6 +86,8 @@ class PlaylistItemResponse(BaseModel):
     duration: float
     order: int
     media_type: str  # 'video' or 'image'
+    thumbnail_data: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
     class Config:
         from_attributes = True
