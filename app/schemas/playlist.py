@@ -13,7 +13,7 @@ from datetime import datetime
 class PlaylistBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    default_duration: int = Field(default=10, ge=1, le=3600)  # seconds
+    default_duration: float = Field(default=10, ge=1, le=3600)  # seconds
     transition: str = Field(default="fade", pattern="^(fade|slide|none)$")
     loop: bool = True
 
@@ -22,7 +22,7 @@ class PlaylistItemCreateSimple(BaseModel):
     """Simple item schema for playlist creation"""
     media_id: str
     name: str
-    duration: int
+    duration: float
     order: int
     media_type: str = "video"
 
@@ -35,7 +35,7 @@ class PlaylistCreate(PlaylistBase):
 class PlaylistUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
-    default_duration: Optional[int] = Field(None, ge=1, le=3600)
+    default_duration: Optional[float] = Field(None, ge=1, le=3600)
     transition: Optional[str] = Field(None, pattern="^(fade|slide|none)$")
     loop: Optional[bool] = None
     is_published: Optional[bool] = None
@@ -45,12 +45,12 @@ class PlaylistResponse(BaseModel):
     id: str
     name: str
     description: Optional[str]
-    default_duration: int
+    default_duration: float
     transition: str
     loop: bool
     is_published: bool
     items_count: int
-    total_duration: int  # in seconds
+    total_duration: float  # in seconds
     used_in: int
     created_at: datetime
     updated_at: datetime
@@ -71,7 +71,7 @@ PlaylistListResponse = List[PlaylistResponse]
 
 class PlaylistItemBase(BaseModel):
     media_id: str = Field(..., min_length=1)
-    duration: int = Field(..., ge=1, le=86400)  # seconds (max 24h)
+    duration: float = Field(..., ge=1, le=86400)  # seconds (max 24h)
 
 
 class PlaylistItemCreate(PlaylistItemBase):
@@ -83,7 +83,7 @@ class PlaylistItemResponse(BaseModel):
     playlist_id: str
     media_id: str
     name: str  # Media name
-    duration: int
+    duration: float
     order: int
     media_type: str  # 'video' or 'image'
 
