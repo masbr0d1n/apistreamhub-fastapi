@@ -13,7 +13,10 @@ from typing import Dict, Any, Optional
 class FFmpegService:
     """Service for video processing using FFmpeg"""
     
-    def __init__(self, upload_dir: str = "/app/uploads/videos"):
+    def __init__(self, upload_dir: str = None):
+        import os
+        if upload_dir is None:
+            upload_dir = str(Path(os.getcwd()) / "uploads" / "videos")
         self.upload_dir = Path(upload_dir)
         self.thumbnail_dir = self.upload_dir.parent / "thumbnails"
         self.thumbnail_dir.mkdir(parents=True, exist_ok=True)

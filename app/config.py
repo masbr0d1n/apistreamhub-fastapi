@@ -41,9 +41,14 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
+        "http://localhost:3001",  # TV Hub
+        "http://localhost:3002",  # Videotron
+        "http://localhost:3003",  # Videotron (alt port)
         "http://localhost:9000",
         "http://localhost:3300",
         "http://192.168.200.60:3000",
+        "http://192.168.8.117:3001",  # Network TV Hub
+        "http://192.168.8.117:3002",  # Network Videotron
         "https://streamhub.uzone.id",
         "https://api-streamhub.uzone.id"
     ]

@@ -51,7 +51,8 @@ app.add_middleware(
 )
 
 # Mount static files for uploads
-UPLOAD_DIR = Path("/app/uploads")
+import os
+UPLOAD_DIR = Path(os.getcwd()) / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
@@ -118,7 +119,7 @@ async def health_check():
 
 
 # Include API v1 routers
-from app.api.v1 import auth, channels, videos, api_router
+from app.api.v1 import auth, channels, videos, api_router, screens, layouts, campaigns, templates
 from app.api.playlists import router as playlists_router
 
 app.include_router(auth.router, prefix="/api/v1")
@@ -126,6 +127,10 @@ app.include_router(channels.router, prefix="/api/v1")
 app.include_router(videos.router, prefix="/api/v1")
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(playlists_router)
+app.include_router(screens.router, prefix="/api/v1")
+app.include_router(layouts.router, prefix="/api/v1")
+app.include_router(campaigns.router, prefix="/api/v1")
+app.include_router(templates.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

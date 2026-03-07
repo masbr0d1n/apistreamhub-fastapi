@@ -69,6 +69,16 @@ class Token(BaseModel):
     expires_in: int  # seconds
 
 
+class AuthTokenResponse(BaseModel):
+    """Schema for authentication response with user data."""
+    
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
+    user: UserResponse
+
+
 class TokenPayload(BaseModel):
     """Schema for token payload."""
     
@@ -83,7 +93,7 @@ class AuthResponse(BaseModel):
     status: bool = True
     statusCode: int = 200
     message: str = "Success"
-    data: Token
+    data: AuthTokenResponse
 
 
 class UserDetailResponse(BaseModel):

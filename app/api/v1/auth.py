@@ -59,7 +59,7 @@ async def register(
     "/login",
     response_model=AuthResponse,
     summary="Login user",
-    description="Authenticate user and return JWT tokens"
+    description="Authenticate user and return JWT tokens with user data"
 )
 async def login(
     user_login: UserLogin,
@@ -73,7 +73,7 @@ async def login(
         db: Database session
         
     Returns:
-        JWT tokens (access_token and refresh_token)
+        JWT tokens and user data
     """
     try:
         # Authenticate user
@@ -82,11 +82,18 @@ async def login(
         # Create tokens
         tokens = auth_service.create_tokens(user)
         
+        # Include user data in response
         return AuthResponse(
             status=True,
             statusCode=200,
             message="Login successful",
-            data=tokens
+            data={
+                "access_token": tokens.access_token,
+                "refresh_token": tokens.refresh_token,
+                "token_type": tokens.token_type,
+                "expires_in": tokens.expires_in,
+                "user": UserResponse.model_validate(user)
+            }
         )
     except StreamHubException as e:
         raise e

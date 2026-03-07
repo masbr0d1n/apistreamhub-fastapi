@@ -28,7 +28,8 @@ router = APIRouter(prefix="/videos", tags=["videos"])
 video_service = VideoService()
 
 # Configure upload directory
-UPLOAD_DIR = Path("/app/uploads/videos")
+import os
+UPLOAD_DIR = Path(os.getcwd()) / "uploads" / "videos"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Allowed file extensions
