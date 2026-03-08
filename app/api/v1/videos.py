@@ -8,7 +8,7 @@ import io
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, Depends, status, Query, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, status, Query, UploadFile, File, Form, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import get_db
@@ -22,6 +22,7 @@ from app.schemas.video import (
 from app.services.video_service import VideoService
 from app.services.ffmpeg_service import ffmpeg_service
 from app.core.exceptions import StreamHubException
+from app.core.rate_limiter import limiter
 
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -289,7 +290,9 @@ async def get_video_by_youtube_id(
     summary="Upload content file with FFmpeg/Pillow processing",
     description="Upload MP4 video or image file with UUID filename, auto-generate thumbnail and extract metadata. Supports MP4, JPG, JPEG, PNG, BMP, GIF."
 )
+@limiter.limit("10/minute")
 async def upload_video(
+    request: Request,
     title: str = Form(...),
     channel_id: int = Form(...),
     category: str = Form(default="entertainment"),

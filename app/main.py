@@ -1,7 +1,7 @@
 """
 Main FastAPI application.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -10,6 +10,7 @@ from pathlib import Path
 from app.config import settings
 from app.db.base import init_db
 from app.core.exceptions import StreamHubException
+from app.core.rate_limiter import limiter, rate_limit_exceeded_handler
 
 
 @asynccontextmanager
@@ -40,6 +41,10 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan
 )
+
+# Register rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(429, rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(

@@ -1,7 +1,7 @@
 """
 Authentication API routes.
 """
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import get_db
@@ -15,6 +15,7 @@ from app.schemas.auth import (
 from app.services.auth_service import AuthService
 from app.core.exceptions import StreamHubException
 from app.core.security import get_current_user, decode_access_token
+from app.core.rate_limiter import limiter
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -28,7 +29,9 @@ auth_service = AuthService()
     summary="Register a new user",
     description="Create a new user account with username, email, and password"
 )
+@limiter.limit("3/minute")
 async def register(
+    request: Request,
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db)
 ) -> UserDetailResponse:
@@ -61,7 +64,9 @@ async def register(
     summary="Login user",
     description="Authenticate user and return JWT tokens with user data"
 )
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     user_login: UserLogin,
     db: AsyncSession = Depends(get_db)
 ) -> AuthResponse:
@@ -105,7 +110,9 @@ async def login(
     summary="Refresh access token",
     description="Get a new access token using refresh token"
 )
+@limiter.limit("5/minute")
 async def refresh_token(
+    request: Request,
     refresh_token: str,
     db: AsyncSession = Depends(get_db)
 ) -> AuthResponse:

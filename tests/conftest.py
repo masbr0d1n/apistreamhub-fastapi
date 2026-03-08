@@ -1,138 +1,76 @@
-# StreamHub API Migration Commands
+"""
+Pytest configuration and fixtures for StreamHub API tests.
+"""
+import pytest
+import asyncio
+from typing import AsyncGenerator, Generator
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
-## Quick Start
+from app.main import app
+from app.config import settings
+from app.db.base import Base, get_db
 
-### 1. Apply Database Migration
 
-```bash
-# Option A: Using psql directly
-psql -h localhost -U postgres -d apistreamhub -f migrations/add_streaming_fields.sql
+# Test database URL (in-memory SQLite for fast tests)
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-# Option B: Using docker-compose exec
-docker-compose exec -T postgres psql -U postgres -d apistreamhub <<EOF
-ALTER TABLE channels 
-ADD COLUMN IF NOT EXISTS is_on_air BOOLEAN DEFAULT FALSE NOT NULL;
 
-ALTER TABLE channels 
-ADD COLUMN IF NOT EXISTS started_streaming_at TIMESTAMP WITH TIME ZONE;
+@pytest.fixture(scope="session")
+def event_loop() -> Generator:
+    """Create an instance of the default event loop for each test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
-ALTER TABLE channels 
-ADD COLUMN IF NOT EXISTS stopped_streaming_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX IF NOT EXISTS idx_channels_is_on_air ON channels(is_on_air);
-EOF
-```
+@pytest.fixture(scope="function")
+async def test_engine():
+    """Create a test database engine."""
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    
+    # Create tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    yield engine
+    
+    # Cleanup
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    
+    await engine.dispose()
 
-### 2. Restart FastAPI Backend
 
-```bash
-cd /home/sysop/.openclaw/workspace/apistreamhub-fastapi
+@pytest.fixture(scope="function")
+async def test_db(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Create a test database session."""
+    async_session = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    
+    async with async_session() as session:
+        yield session
 
-# Stop existing containers
-docker-compose down
 
-# Rebuild and start
-docker-compose up -d --build
-
-# Check logs
-docker-compose logs -f api
-```
-
-### 3. Run Tests
-
-```bash
-# All tests
-pytest
-
-# Streaming tests only
-pytest tests/test_streaming.py -v
-
-# With coverage
-pytest tests/test_streaming.py --cov=app/services/streaming_service --cov-report=html
-```
-
----
-
-## Manual Migration Steps
-
-If auto-migration fails:
-
-```sql
--- Connect to database
-docker-compose exec postgres psql -U postgres -d apistreamhub
-
--- Check current table structure
-\d channels
-
--- Add columns one by one
-ALTER TABLE channels ADD COLUMN is_on_air BOOLEAN DEFAULT FALSE NOT NULL;
-ALTER TABLE channels ADD COLUMN started_streaming_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE channels ADD COLUMN stopped_streaming_at TIMESTAMP WITH TIME ZONE;
-
--- Verify
-SELECT column_name, data_type FROM information_schema.columns 
-WHERE table_name = 'channels' 
-ORDER BY ordinal_position;
-```
-
----
-
-## Troubleshooting
-
-### Issue: Column already exists
-```sql
--- Check if column exists
-SELECT column_name FROM information_schema.columns 
-WHERE table_name = 'channels' AND column_name = 'is_on_air';
-
--- If exists, skip migration
-```
-
-### Issue: Permission denied
-```bash
-# Run as postgres user
-docker-compose exec -u postgres postgres psql -d apistreamhub
-```
-
-### Issue: Table doesn't exist
-```bash
-# Initialize database first
-cd /home/sysop/.openclaw/workspace/apistreamhub-fastapi
-python init_db.py
-```
-
----
-
-## Verification
-
-After migration, verify with API:
-
-```bash
-# 1. Create a test channel
-curl -X POST "http://localhost:8000/api/v1/channels/" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-    "name": "Test Channel",
-    "category": "entertainment",
-    "description": "Test streaming"
-  }'
-
-# 2. Turn on channel
-curl -X POST "http://localhost:8000/api/v1/streaming/channels/1/on-air" \
-  -H "Authorization: Bearer <token>"
-
-# 3. Check status
-curl -X GET "http://localhost:8000/api/v1/streaming/channels/1/status" \
-  -H "Authorization: Bearer <token>"
-
-# 4. Turn off channel
-curl -X POST "http://localhost:8000/api/v1/streaming/channels/1/off-air" \
-  -H "Authorization: Bearer <token>"
-```
-
----
-
-**Status:** ✅ Ready to apply
-**Database:** PostgreSQL 16+
-**API Version:** v1
+@pytest.fixture(scope="function")
+async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Create a test client."""
+    # Override the database dependency
+    async def override_get_db():
+        yield test_db
+    
+    app.dependency_overrides[get_db] = override_get_db
+    
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as ac:
+        yield ac
+    
+    app.dependency_overrides.clear()
