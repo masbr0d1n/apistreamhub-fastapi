@@ -4,7 +4,7 @@ Screen model - database schema for Videotron device management.
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, DateTime, Enum as SQLEnum
+from sqlalchemy import String, DateTime, Enum as SQLEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -50,6 +50,13 @@ class Screen(Base):
         DateTime(timezone=True), 
         server_default=func.now(), 
         onupdate=func.now()
+    )
+    
+    # Tenant
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("tenants.id"),
+        nullable=True
     )
     
     # Relationships

@@ -9,6 +9,7 @@ import logging
 
 from app.models.channel import Channel
 from app.core.exceptions import StreamHubException
+from app.config import settings
 
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class StreamingService:
             "channel_id": channel_id,
             "status": "on-air",
             "started_at": datetime.utcnow(),
-            "stream_url": f"rtmp://localhost/live/{channel.name}",
+            "stream_url": f"rtmp://{settings.RTMP_STREAM_HOST}/live/{channel.name}",
             "message": f"Channel {channel.name} is now streaming"
         }
     
@@ -177,5 +178,5 @@ class StreamingService:
             "status": status_str,
             "started_at": channel.started_streaming_at,
             "stopped_at": channel.stopped_streaming_at,
-            "stream_url": f"rtmp://localhost/live/{channel.name}" if channel.is_on_air else None
+            "stream_url": f"rtmp://{settings.RTMP_STREAM_HOST}/live/{channel.name}" if channel.is_on_air else None
         }

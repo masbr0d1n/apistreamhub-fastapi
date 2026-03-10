@@ -1,0 +1,40 @@
+version: '3.8'
+
+# Production environment overrides
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# IMPORTANT: Ensure .env file exists with all required production values
+
+services:
+  api:
+    environment:
+      DEBUG: "false"
+      # Production CORS - only allow production domains
+      CORS_ORIGINS: "https://streamhub.uzone.id,https://api-streamhub.uzone.id"
+      # Production database - use secrets from .env
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: 5432
+    ports:
+      - "8000:8000"
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  db:
+    ports: []  # Don't expose database port in production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G

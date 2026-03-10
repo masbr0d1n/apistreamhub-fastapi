@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,13 +15,13 @@ from app.db.base import get_db
 from app.schemas.auth import UserResponse
 
 
-# OAuth2 scheme for JWT authentication
+# OAuth2 scheme for JWT authentication (fallback if cookie not present)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 # Dependency for protected routes
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ) -> UserResponse:
     """
@@ -33,7 +33,7 @@ async def get_current_user(
             return {"message": f"Hello {current_user.username}"}
     
     Args:
-        token: JWT token from Authorization header
+        request: Request object (to get token from cookie or header)
         db: Database session
         
     Returns:
@@ -44,6 +44,18 @@ async def get_current_user(
     """
     # Import here to avoid circular dependency
     from app.services.auth_service import AuthService
+    
+    # Try to get token from cookie first, then fall back to header
+    token = request.cookies.get("access_token")
+    if not token:
+        # Fallback to Authorization header for backward compatibility
+        try:
+            token = await oauth2_scheme(request)
+        except Exception:
+            raise UnauthorizedException("Not authenticated")
+    
+    if not token:
+        raise UnauthorizedException("Not authenticated")
     
     try:
         # Decode token

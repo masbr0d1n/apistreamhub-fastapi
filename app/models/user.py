@@ -1,8 +1,11 @@
 """
 User model - database schema.
 """
+import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, JSON, Enum as SQLEnum
+from typing import Optional
+from sqlalchemy import String, Boolean, DateTime, JSON, Enum as SQLEnum, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -30,6 +33,7 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # Deprecated, kept for compatibility
     role: Mapped[str] = mapped_column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
     page_access: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Page permissions
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_login: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     

@@ -3,18 +3,44 @@ Pytest configuration and fixtures for StreamHub API tests.
 """
 import pytest
 import asyncio
+import json
 from typing import AsyncGenerator, Generator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.types import TypeDecorator, Text
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql import sqltypes as sql_types
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.main import app
 from app.config import settings
 from app.db.base import Base, get_db
+from app.schemas.auth import UserCreate
+from app.services.auth_service import AuthService
 
 
 # Test database URL (in-memory SQLite for fast tests)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+# Register custom compilers for PostgreSQL-specific types to work with SQLite
+@compiles(sql_types.ARRAY, 'sqlite')
+def compile_array(element, compiler, **kw):
+    """Compile ARRAY type as JSON for SQLite compatibility."""
+    return "JSON"
+
+
+@compiles(sql_types.JSON, 'sqlite')
+def compile_json(element, compiler, **kw):
+    """Compile JSON type for SQLite."""
+    return "JSON"
+
+
+@compiles(JSONB, 'sqlite')
+def compile_jsonb(element, compiler, **kw):
+    """Compile JSONB type as JSON for SQLite compatibility."""
+    return "JSON"
 
 
 @pytest.fixture(scope="session")
@@ -74,3 +100,48 @@ async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
     
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+async def test_user(test_db: AsyncSession):
+    """Create a test user."""
+    user_data = UserCreate(
+        username="testuser",
+        email="test@example.com",
+        full_name="Test User",
+        password="password123"
+    )
+    
+    auth_service = AuthService()
+    user = await auth_service.register(test_db, user_data)
+    return user
+
+
+@pytest.fixture(scope="function")
+async def auth_headers(client: AsyncClient, test_user):
+    """Get authentication headers with access token."""
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "username": "testuser",
+            "password": "password123"
+        }
+    )
+    access_token = response.json()["data"]["access_token"]
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest.fixture(scope="function")
+async def test_channel(test_db):
+    """Create a test channel."""
+    from app.models.channel import Channel
+    
+    channel = Channel(
+        name="Test Channel",
+        category="entertainment",
+        description="A test channel"
+    )
+    test_db.add(channel)
+    await test_db.commit()
+    await test_db.refresh(channel)
+    return channel

@@ -1,0 +1,21 @@
+version: '3.8'
+
+# Development environment overrides
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    environment:
+      DEBUG: "true"
+      # Development CORS - allows all localhost ports
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:9000,http://localhost:3300"
+      # Development database credentials
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: apistreamhub
+      DB_PORT: 5434
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app:/app/app
+      - uploads_volume:/app/uploads

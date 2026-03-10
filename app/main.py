@@ -49,7 +49,7 @@ app.add_exception_handler(429, rate_limit_exceeded_handler)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -124,7 +124,7 @@ async def health_check():
 
 
 # Include API v1 routers
-from app.api.v1 import auth, channels, videos, api_router, screens, layouts, campaigns, templates
+from app.api.v1 import auth, channels, videos, api_router, screens, layouts, campaigns, templates, analytics
 from app.api.playlists import router as playlists_router
 
 app.include_router(auth.router, prefix="/api/v1")
@@ -136,6 +136,7 @@ app.include_router(screens.router, prefix="/api/v1")
 app.include_router(layouts.router, prefix="/api/v1")
 app.include_router(campaigns.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
+app.include_router(analytics.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

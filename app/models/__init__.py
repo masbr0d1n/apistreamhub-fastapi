@@ -11,3 +11,4 @@ from app.models.screen_group import ScreenGroup, ScreenGroupItem
 from app.models.layout import Layout
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.template import Template
+from app.models.tenant import Tenant

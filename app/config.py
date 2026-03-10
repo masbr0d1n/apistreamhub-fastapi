@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://user:password@localhost:5432/apistreamhub"
+        default="postgresql+asyncpg://postgres:postgres@apistreamhub-db:5432/apistreamhub",
+        description="PostgreSQL connection string. Format: postgresql+asyncpg://user:password@host:port/database"
     )
     
     # JWT
@@ -40,19 +41,10 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
     # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",  # TV Hub
-        "http://localhost:3002",  # Videotron
-        "http://localhost:3003",  # Videotron (alt port)
-        "http://localhost:9000",
-        "http://localhost:3300",
-        "http://192.168.200.60:3000",
-        "http://192.168.8.117:3001",  # Network TV Hub
-        "http://192.168.8.117:3002",  # Network Videotron
-        "https://streamhub.uzone.id",
-        "https://api-streamhub.uzone.id"
-    ]
+    CORS_ORIGINS: str = Field(
+        default="http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:9000,http://localhost:3300,http://100.74.116.116:3002,https://streamhub.uzone.id,https://api-streamhub.uzone.id",
+        description="Comma-separated list of allowed CORS origins. Localhost defaults included for development."
+    )
     
     # File Upload
     UPLOAD_DIR: str = "uploads/"
@@ -62,12 +54,20 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
     
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+    # Streaming
+    RTMP_STREAM_HOST: str = Field(
+        default="localhost",
+        description="RTMP server host for streaming URLs"
+    )
+    RTMP_STREAM_PORT: int = Field(
+        default=1935,
+        description="RTMP server port (default: 1935)"
+    )
+    
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Get CORS origins as a list of strings."""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
     
     @field_validator("JWT_SECRET_KEY", mode="after")
     @classmethod

@@ -4,6 +4,7 @@ Authentication schemas - request/response validation.
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from enum import Enum
+from uuid import UUID
 
 
 class UserRole(str, Enum):
@@ -55,6 +56,7 @@ class UserResponse(UserBase):
     is_admin: bool  # Deprecated, kept for compatibility
     role: UserRole
     page_access: Optional[dict] = None
+    tenant_id: Optional[UUID] = None
     
     class Config:
         from_attributes = True

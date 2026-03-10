@@ -7,6 +7,97 @@ from httpx import AsyncClient
 
 @pytest.mark.auth
 @pytest.mark.unit
+class TestAuthCookies:
+    """Test httpOnly cookie authentication."""
+    
+    async def test_login_sets_cookies(self, client: AsyncClient, test_user):
+        """Test that login sets httpOnly cookies."""
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "password123"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] is True
+        assert "access_token" in data["data"]
+        assert "refresh_token" in data["data"]
+        
+        # Check cookies are set
+        assert "access_token" in response.cookies
+        assert "refresh_token" in response.cookies
+        assert response.cookies["access_token"] == data["data"]["access_token"]
+        assert response.cookies["refresh_token"] == data["data"]["refresh_token"]
+    
+    async def test_logout_clears_cookies(self, client: AsyncClient, test_user):
+        """Test that logout clears cookies."""
+        # First login to get cookies
+        await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "password123"
+            }
+        )
+        
+        # Now logout
+        response = await client.post("/api/v1/auth/logout")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] is True
+        assert data["message"] == "Logged out"
+        
+        # Check cookies are cleared (expired)
+        # Note: httpx doesn't automatically remove cookies on delete,
+        # but the cookie should have an expired max-age
+        assert "access_token" in response.cookies or response.cookies.get("access_token") == ""
+    
+    async def test_refresh_with_cookie(self, client: AsyncClient, test_user):
+        """Test token refresh using cookie."""
+        # First login to get cookies
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "password123"
+            }
+        )
+        
+        # Refresh using cookie (client automatically sends cookies)
+        response = await client.post("/api/v1/auth/refresh")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] is True
+        assert "access_token" in data["data"]
+    
+    async def test_get_current_user_with_cookie(self, client: AsyncClient, test_user):
+        """Test getting current user with cookie authentication."""
+        # Login to set cookies
+        await client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "testuser",
+                "password": "password123"
+            }
+        )
+        
+        # Get current user (cookies sent automatically)
+        response = await client.get("/api/v1/auth/me")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] is True
+        assert data["data"]["username"] == "testuser"
+    
+    async def test_protected_route_without_auth(self, client: AsyncClient):
+        """Test protected route without authentication."""
+        response = await client.get("/api/v1/auth/me")
+        assert response.status_code == 401
+
+
+@pytest.mark.auth
+@pytest.mark.unit
 class TestAuth:
     """Test authentication endpoints."""
     
@@ -119,21 +210,17 @@ class TestAuth:
     
     async def test_refresh_token(self, client: AsyncClient, test_user):
         """Test token refresh."""
-        # First login to get refresh token
-        response = await client.post(
+        # First login to get cookies
+        await client.post(
             "/api/v1/auth/login",
             json={
                 "username": "testuser",
                 "password": "password123"
             }
         )
-        refresh_token = response.json()["data"]["refresh_token"]
         
-        # Now refresh
-        response = await client.post(
-            "/api/v1/auth/refresh",
-            params={"refresh_token": refresh_token}
-        )
+        # Now refresh (uses cookie automatically)
+        response = await client.post("/api/v1/auth/refresh")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] is True
