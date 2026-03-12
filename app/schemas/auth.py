@@ -47,6 +47,12 @@ class UserLogin(BaseModel):
     password: str = Field(..., description="Password")
 
 
+class RefreshTokenRequest(BaseModel):
+    """Schema for token refresh request."""
+    
+    refresh_token: str = Field(..., description="Valid refresh token")
+
+
 class UserResponse(UserBase):
     """Schema for user response."""
     
